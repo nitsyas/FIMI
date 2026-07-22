@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>דשבורד התערבויות זרות - חדר מצב</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; backdrop-filter: blur(10px); padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
+        .chart-container { width: 100%; height: 300px; }
+        .map-container { width: 100%; height: 500px; }
+        .metric-value { font-size: 2.5rem; font-weight: bold; color: #38bdf8; line-height: 1; margin-top: 10px; }
+        .metric-title { font-size: 1rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: right; padding: 12px; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+        th { background-color: #1e293b; color: #94a3b8; font-weight: 600; }
+        tr:hover { background-color: #1e293b; }
+        a { color: #38bdf8; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .tab-btn { padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .tab-active { background-color: #0284c7; color: white; }
+        .tab-inactive { background-color: #334155; color: #94a3b8; }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen">
+
+    <div class="max-w-7xl mx-auto mb-6">
+        <div class="glass-panel mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-l-4 border-l-sky-500">
+            <div>
+                <h1 class="text-3xl font-bold text-white mb-2">מערכת מעקב: התערבויות זרות</h1>
+                <p class="text-slate-400">ניטור איומים, דיסאינפורמציה והשפעה דיגיטלית ברחבי העולם</p>
+            </div>
+            
+            <div class="flex-grow max-w-xl w-full bg-slate-800 p-4 rounded-lg border border-slate-700">
+                <div class="flex gap-2 mb-4">
+                    <button id="btnTabLive" class="tab-btn tab-active" onclick="switchTab('live')">חיבור חי (URL)</button>
+                    <button id="btnTabFile" class="tab-btn tab-inactive" onclick="switchTab('file')">טעינת קובץ CSV ידנית</button>
+                </div>
+                
+                <!-- Live URL Input -->
+                <div id="tabLive">
+                    <label class="block text-sm text-slate-400 mb-1">קישור חי לנתונים (Google Sheets CSV URL):</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="csvUrl" placeholder="הדבק כאן את הקישור ל-CSV שלך..." class="w-full bg-slate-900 border border-slate-600 rounded px-4 py-2 text-white focus:outline-none focus:border-sky-500">
+                        <button onclick="loadDataFromUrl()" class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-2 rounded font-semibold transition-colors shadow-lg shadow-sky-900 whitespace-nowrap">טען</button>
+                    </div>
+                </div>
+
+                <!-- Local File Input -->
+                <div id="tabFile" style="display: none;">
+                    <label class="block text-sm text-slate-400 mb-1">בחר קובץ CSV מהמחשב (ללא בעיות רשת):</label>
+                    <div class="flex gap-2">
+                        <input type="file" id="csvFile" accept=".csv" class="w-full text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-500 cursor-pointer">
+                        <button onclick="loadDataFromFile()" class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-2 rounded font-semibold transition-colors shadow-lg shadow-sky-900 whitespace-nowrap">טען</button>
+                    </div>
+                </div>
+                <div id="statusMsg" class="mt-2 text-sm hidden font-bold"></div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="glass-panel mb-6 flex flex-wrap gap-4 items-center" id="filtersDiv" style="opacity: 0.5; pointer-events: none;">
+            <span class="text-slate-400 font-semibold mr-2">סינון מהיר:</span>
+            <select id="filterAttacker" onchange="applyFilters()" class="bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-white">
+                <option value="all">כל התוקפים</option>
+            </select>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="filterIsrael" onchange="applyFilters()" class="form-checkbox text-sky-500 rounded bg-slate-800 border-slate-600">
+                <span>קשור לישראל</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="filterAI" onchange="applyFilters()" class="form-checkbox text-sky-500 rounded bg-slate-800 border-slate-600">
+                <span>שימוש ב-AI</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="filterElections" onchange="applyFilters()" class="form-checkbox text-sky-500 rounded bg-slate-800 border-slate-600">
+                <span>קשור לבחירות</span>
+            </label>
+        </div>
+
+        <!-- Dashboard Content (hidden until data loads) -->
+        <div id="dashboardContent" style="opacity: 0.2;">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                <div class="glass-panel text-center relative overflow-hidden">
+                    <div class="metric-title">סך הכל אירועים</div>
+                    <div class="metric-value" id="valTotal">0</div>
+                </div>
+                <div class="glass-panel text-center relative overflow-hidden">
+                    <div class="metric-title">קשור לישראל/יהודים</div>
+                    <div class="metric-value text-rose-400" id="valIsrael">0</div>
+                </div>
+                <div class="glass-panel text-center relative overflow-hidden">
+                    <div class="metric-title">שימוש ב-AI</div>
+                    <div class="metric-value text-purple-400" id="valAI">0%</div>
+                </div>
+                <div class="glass-panel text-center relative overflow-hidden">
+                    <div class="metric-title">התוקף הפעיל ביותר</div>
+                    <div class="metric-value text-amber-400 text-2xl mt-4" id="valTopAttacker">-</div>
+                </div>
+            </div>
+
+            <div class="glass-panel mb-6">
+                <h2 class="text-xl font-bold mb-4 text-slate-200">מפת זרימת התערבויות גלובלית</h2>
+                <div id="mapChart" class="map-container"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                <div class="glass-panel">
+                    <h2 class="text-lg font-bold mb-2 text-slate-200">אירועים על ציר הזמן</h2>
+                    <div id="timelineChart" class="chart-container"></div>
+                </div>
+                <div class="glass-panel">
+                    <h2 class="text-lg font-bold mb-2 text-slate-200">זירות ופלטפורמות</h2>
+                    <div id="platformsChart" class="chart-container"></div>
+                </div>
+                <div class="glass-panel">
+                    <h2 class="text-lg font-bold mb-2 text-slate-200">תחומי השפעה (מטרות)</h2>
+                    <div id="impactChart" class="chart-container"></div>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <h2 class="text-xl font-bold mb-4 text-slate-200">יומן אירועים מפורט</h2>
+                <div class="overflow-x-auto">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>תאריך</th>
+                                <th>כותרת בעברית</th>
+                                <th>הגוף התוקף</th>
+                                <th>הגוף המותקף</th>
+                                <th>פלטפורמות</th>
+                                <th>מידת השפעה</th>
+                                <th>קישור</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // UI Logic
+        function switchTab(tab) {
+            if(tab === 'live') {
+                document.getElementById('tabLive').style.display = 'block';
+                document.getElementById('tabFile').style.display = 'none';
+                document.getElementById('btnTabLive').className = 'tab-btn tab-active';
+                document.getElementById('btnTabFile').className = 'tab-btn tab-inactive';
+            } else {
+                document.getElementById('tabLive').style.display = 'none';
+                document.getElementById('tabFile').style.display = 'block';
+                document.getElementById('btnTabLive').className = 'tab-btn tab-inactive';
+                document.getElementById('btnTabFile').className = 'tab-btn tab-active';
+            }
+        }
+
+        function showStatus(msg, isError) {
+            const el = document.getElementById('statusMsg');
+            el.textContent = msg;
+            el.className = 'mt-2 text-sm font-bold ' + (isError ? 'text-rose-500' : 'text-emerald-400');
+            el.style.display = 'block';
+        }
+
+        const coordinatesMap = {
+            "רוסיה": [105.3, 61.5], "אוקראינה": [31.1, 48.3], "איראן": [53.6, 32.4], "ישראל": [34.8, 31.0],
+            "סין": [104.1, 35.8], "ארה\"ב": [-95.7, 37.0], "בריטניה": [-3.4, 55.3],
+            "צרפת": [2.2, 46.2], "עולמית": [0, 0]
+        };
+
+        function getCoords(name) {
+            if (coordinatesMap[name]) return coordinatesMap[name];
+            return [Math.random() * 20 - 10, Math.random() * 20 - 10]; 
+        }
+
+        let rawData = [];
+        let filteredData = [];
+        let mapChart, timelineChart, platformsChart, impactChart;
+
+        function initCharts() {
+            mapChart = echarts.init(document.getElementById('mapChart'));
+            timelineChart = echarts.init(document.getElementById('timelineChart'));
+            platformsChart = echarts.init(document.getElementById('platformsChart'));
+            impactChart = echarts.init(document.getElementById('impactChart'));
+            window.addEventListener('resize', () => { mapChart.resize(); timelineChart.resize(); platformsChart.resize(); impactChart.resize(); });
+        }
+
+        fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+            .then(response => response.json())
+            .then(worldJson => {
+                echarts.registerMap('world', worldJson);
+                initCharts();
+            });
+
+        function getGoogleSheetInfo(rawUrl) {
+            try {
+                const url = new URL(rawUrl);
+                if (!url.hostname.endsWith('google.com')) return null;
+
+                let match = url.pathname.match(/\/spreadsheets\/d\/e\/([^/]+)/);
+                let isPublished = false;
+                if (match) {
+                    isPublished = true;
+                } else {
+                    match = url.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
+                }
+                if (!match) return null;
+
+                let gid = url.searchParams.get('gid') || '0';
+                const hashMatch = url.hash.match(/gid=(\d+)/);
+                if (hashMatch) gid = hashMatch[1];
+
+                return { sheetId: match[1], gid, isPublished };
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // JSONP avoids CORS when the dashboard is opened as a local HTML file.
+        function loadGoogleSheetWithoutFetch(sheetId, gid, isPublished) {
+            showStatus("טוען נתונים מ-Google Sheets...", false);
+
+            const callbackName = '__googleSheetCallback_' + Date.now();
+            const script = document.createElement('script');
+            let finished = false;
+
+            const cleanup = () => {
+                clearTimeout(timeoutId);
+                if (script.parentNode) script.remove();
+                try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
+            };
+
+            const fail = (message) => {
+                if (finished) return;
+                finished = true;
+                cleanup();
+                showStatus(message, true);
+            };
+
+            window[callbackName] = function(response) {
+                if (finished) return;
+                finished = true;
+                cleanup();
+
+                if (!response || response.status !== 'ok' || !response.table) {
+                    const detail = response && response.errors && response.errors[0] &&
+                        (response.errors[0].detailed_message || response.errors[0].message);
+                    showStatus(detail || "Google Sheets לא החזיר טבלה. בדוק שהלשונית וה-gid בקישור נכונים.", true);
+                    return;
+                }
+
+                const fields = response.table.cols.map((col, index) =>
+                    String(col.label || col.id || `עמודה ${index + 1}`).trim()
+                );
+                const data = response.table.rows.map(row => {
+                    const obj = {};
+                    fields.forEach((field, index) => {
+                        const cell = row.c && row.c[index];
+                        obj[field] = cell ? (cell.f != null ? String(cell.f) : (cell.v != null ? String(cell.v) : '')) : '';
+                    });
+                    return obj;
+                });
+
+                checkAndProcessData(data, fields);
+            };
+
+            const basePath = isPublished
+                ? `https://docs.google.com/spreadsheets/d/e/${encodeURIComponent(sheetId)}/gviz/tq`
+                : `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq`;
+            const tqx = `out:json;responseHandler:${callbackName}`;
+            script.src = `${basePath}?tqx=${encodeURIComponent(tqx)}&gid=${encodeURIComponent(gid)}&_=${Date.now()}`;
+            script.async = true;
+            script.onerror = () => fail("הדפדפן חסם את טעינת Google Sheets. נסה לכבות חוסם פרסומות או הגנת מעקב עבור הקובץ, או השתמש בטעינת CSV ידנית.");
+
+            const timeoutId = setTimeout(() => {
+                fail("Google Sheets לא החזיר תשובה. ייתכן שהקישור מפנה ללשונית שאינה קיימת, או שהדפדפן חוסם את docs.google.com.");
+            }, 15000);
+
+            document.head.appendChild(script);
+        }
+
+        // Load via URL
+        function loadDataFromUrl() {
+            const rawUrl = document.getElementById('csvUrl').value.trim();
+            if (!rawUrl) { showStatus("אנא הזן קישור.", true); return; }
+
+            const sheetInfo = getGoogleSheetInfo(rawUrl);
+            if (sheetInfo) {
+                loadGoogleSheetWithoutFetch(sheetInfo.sheetId, sheetInfo.gid, sheetInfo.isPublished);
+                return;
+            }
+
+            showStatus("טוען נתונים מהרשת...", false);
+            fetch(rawUrl)
+                .then(res => {
+                    if (!res.ok) throw new Error("שגיאת שרת: " + res.status);
+                    return res.text();
+                })
+                .then(csvText => {
+                    Papa.parse(csvText, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            checkAndProcessData(results.data, results.meta.fields);
+                        }
+                    });
+                })
+                .catch(err => {
+                    console.error("Data loading failed:", err);
+                    showStatus("הדפדפן חסם את כתובת ה-CSV. לקישור Google Sheets השתמש בקישור השיתוף הרגיל, או טען קובץ CSV ידנית.", true);
+                });
+        }
+
+        // Load via Local File
+        function loadDataFromFile() {
+            const fileInput = document.getElementById('csvFile');
+            if (!fileInput.files.length) { showStatus("אנא בחר קובץ מהמחשב.", true); return; }
+            showStatus("טוען קובץ מקומי...", false);
+
+            Papa.parse(fileInput.files[0], {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    checkAndProcessData(results.data, results.meta.fields);
+                },
+                error: function(err) {
+                    showStatus("שגיאה בקריאת הקובץ.", true);
+                    console.error(err);
+                }
+            });
+        }
+
+        function findColumn(fields, expectedName) {
+            if(!fields) return null;
+            const cleanExpected = expectedName.replace(/[\s\-‑]/g, ''); 
+            for (let f of fields) {
+                if (f.replace(/[\s\-‑]/g, '') === cleanExpected) return f;
+            }
+            return null;
+        }
+
+        function checkAndProcessData(data, fields) {
+            if(!data || data.length === 0) {
+                showStatus("הקובץ נטען אבל הוא ריק מנתונים.", true);
+                return;
+            }
+
+            const colAttacker = findColumn(fields, "הגוף התוקף");
+            const colTarget = findColumn(fields, "הגוף המותקף");
+            const colDate = findColumn(fields, "תאריך");
+            const colPlatform = findColumn(fields, "פלטפורמות");
+            const colIsrael = findColumn(fields, "קשור לישראל/יהודים");
+            const colAI = findColumn(fields, "שימוש ב‑AI");
+            const colElections = findColumn(fields, "קשור לבחירות");
+            const colImpact = findColumn(fields, "מידת השפעה");
+
+            let missing = [];
+            if (!colAttacker) missing.push("הגוף התוקף");
+            if (!colDate) missing.push("תאריך");
+            
+            if (missing.length > 0) {
+                showStatus("שגיאה: עמודות חסרות בקובץ (" + missing.join(", ") + ")", true);
+                return;
+            }
+
+            rawData = data.map(row => {
+                return {
+                    'הגוף התוקף': row[colAttacker] || '',
+                    'הגוף המותקף': row[colTarget] || '',
+                    'תאריך': row[colDate] || '',
+                    'פלטפורמות': row[colPlatform] || '',
+                    'קשור לישראל/יהודים': row[colIsrael] || '',
+                    'שימוש ב-AI': row[colAI] || '',
+                    'קשור לבחירות': row[colElections] || '',
+                    'מידת השפעה': row[colImpact] || '',
+                    'כותרת בעברית': row[findColumn(fields, 'כותרת בעברית') || 'כותרת בעברית'] || '',
+                    'קישור': row[findColumn(fields, 'קישור') || 'קישור'] || ''
+                };
+            }).filter(row => row['הגוף התוקף'].trim() !== '' && row['תאריך'].trim() !== '');
+
+            if(rawData.length === 0) {
+                showStatus("הקובץ נטען, אבל לא נמצאו שורות עם 'תאריך' ו'הגוף התוקף'.", true);
+                return;
+            }
+
+            // Populate Filters
+            const attackers = new Set(rawData.map(row => row['הגוף התוקף'].trim()));
+            const filterSelect = document.getElementById('filterAttacker');
+            filterSelect.innerHTML = '<option value="all">כל התוקפים</option>';
+            attackers.forEach(attacker => {
+                if(attacker) {
+                    const opt = document.createElement('option');
+                    opt.value = attacker;
+                    opt.textContent = attacker;
+                    filterSelect.appendChild(opt);
+                }
+            });
+
+            // Unlock dashboard
+            document.getElementById('filtersDiv').style.opacity = '1';
+            document.getElementById('filtersDiv').style.pointerEvents = 'auto';
+            document.getElementById('dashboardContent').style.opacity = '1';
+            
+            showStatus(`הנתונים נטענו בהצלחה! נמצאו ${rawData.length} אירועים.`, false);
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const attacker = document.getElementById('filterAttacker').value;
+            const israel = document.getElementById('filterIsrael').checked;
+            const ai = document.getElementById('filterAI').checked;
+            const elections = document.getElementById('filterElections').checked;
+
+            filteredData = rawData.filter(row => {
+                let match = true;
+                if (attacker !== 'all' && row['הגוף התוקף'].trim() !== attacker) match = false;
+                
+                // Allow empty check to fail if filter is ON
+                const isrVal = row['קשור לישראל/יהודים'] || '';
+                if (israel && !isrVal.includes('כן') && !isrVal.includes('Yes') && isrVal !== '1' && isrVal !== 'TRUE') match = false;
+                
+                const aiVal = row['שימוש ב-AI'] || '';
+                if (ai && !aiVal.includes('כן') && !aiVal.includes('Yes') && aiVal !== '1' && aiVal !== 'TRUE') match = false;
+                
+                const elecVal = row['קשור לבחירות'] || '';
+                if (elections && !elecVal.includes('כן') && !elecVal.includes('Yes') && elecVal !== '1' && elecVal !== 'TRUE') match = false;
+                
+                return match;
+            });
+
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            updateMetrics();
+            updateTable();
+            updateMapChart();
+            updateTimelineChart();
+            updatePlatformsChart();
+            updateImpactChart();
+        }
+
+        function updateMetrics() {
+            document.getElementById('valTotal').textContent = filteredData.length;
+            const israelCount = filteredData.filter(r => {
+                const v = r['קשור לישראל/יהודים'] || ''; return v.includes('כן') || v.includes('Yes');
+            }).length;
+            document.getElementById('valIsrael').textContent = israelCount;
+            
+            const aiCount = filteredData.filter(r => {
+                const v = r['שימוש ב-AI'] || ''; return v.includes('כן') || v.includes('Yes');
+            }).length;
+            document.getElementById('valAI').textContent = (filteredData.length > 0 ? Math.round((aiCount / filteredData.length) * 100) : 0) + '%';
+
+            const counts = {};
+            filteredData.forEach(r => { const a = r['הגוף התוקף']; if(a) counts[a] = (counts[a] || 0) + 1; });
+            let topAttacker = '-'; let maxCount = 0;
+            for (const [k, v] of Object.entries(counts)) { if (v > maxCount) { maxCount = v; topAttacker = k; } }
+            document.getElementById('valTopAttacker').textContent = topAttacker;
+        }
+
+        function updateMapChart() {
+            const linesData = [];
+            const pointsData = [];
+            filteredData.forEach(row => {
+                const attacker = row['הגוף התוקף'] ? row['הגוף התוקף'].trim() : null;
+                const target = row['הגוף המותקף'] ? row['הגוף המותקף'].trim() : null;
+                if (attacker && target && attacker !== target) {
+                    const fromCoord = getCoords(attacker);
+                    const toCoord = getCoords(target);
+                    linesData.push({ fromName: attacker, toName: target, coords: [fromCoord, toCoord] });
+                    pointsData.push({ name: attacker, value: fromCoord });
+                    pointsData.push({ name: target, value: toCoord });
+                }
+            });
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'item', formatter: p => p.seriesType === 'lines' ? p.data.fromName + ' > ' + p.data.toName : p.name },
+                geo: { map: 'world', roam: true, zoom: 1.2, itemStyle: { areaColor: '#1e293b', borderColor: '#475569', borderWidth: 1 }, emphasis: { itemStyle: { areaColor: '#334155' } } },
+                series: [
+                    { type: 'lines', zlevel: 2, effect: { show: true, period: 4, trailLength: 0.1, symbol: 'arrow', symbolSize: 6 }, lineStyle: { color: '#ef4444', width: 1.5, opacity: 0.6, curveness: 0.2 }, data: linesData },
+                    { type: 'effectScatter', coordinateSystem: 'geo', zlevel: 2, rippleEffect: { brushType: 'stroke' }, label: { show: true, position: 'right', formatter: '{b}', color: '#cbd5e1' }, itemStyle: { color: '#38bdf8' }, symbolSize: 8, data: [...new Map(pointsData.map(i => [i['name'], i])).values()] }
+                ]
+            };
+            mapChart.setOption(option);
+        }
+
+        function updateTimelineChart() {
+            const dateCounts = {};
+            filteredData.forEach(row => {
+                let d = row['תאריך'];
+                if(d) {
+                    if(d.includes('/')) {
+                        const parts = d.split('/');
+                        if(parts.length >= 3) {
+                            if(parts[2].length === 4) d = parts[2] + '-' + parts[1].padStart(2,'0');
+                            else d = parts[0] + '-' + parts[1].padStart(2,'0');
+                        }
+                    } else if (d.includes('-')) {
+                        d = d.substring(0, 7);
+                    }
+                    dateCounts[d] = (dateCounts[d] || 0) + 1;
+                }
+            });
+            const sortedDates = Object.keys(dateCounts).sort();
+            const counts = sortedDates.map(d => dateCounts[d]);
+            const option = {
+                tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: sortedDates, axisLabel: { color: '#94a3b8' } }, yAxis: { type: 'value', splitLine: { lineStyle: { color: '#334155' } }, axisLabel: { color: '#94a3b8' } },
+                series: [{ data: counts, type: 'line', smooth: true, lineStyle: { color: '#38bdf8', width: 3 }, areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(56, 189, 248, 0.5)' }, { offset: 1, color: 'rgba(56, 189, 248, 0.0)' }]) }, itemStyle: { color: '#38bdf8' } }]
+            };
+            timelineChart.setOption(option);
+        }
+
+        function updatePlatformsChart() {
+            const counts = {};
+            filteredData.forEach(row => {
+                const plats = row['פלטפורמות'] ? row['פלטפורמות'].split(',').map(p => p.trim()) : [];
+                plats.forEach(p => { if (p) counts[p] = (counts[p] || 0) + 1; });
+            });
+            const data = Object.keys(counts).map(k => ({ name: k, value: counts[k] })).sort((a,b)=>b.value - a.value);
+            const option = { tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: ['40%', '70%'], itemStyle: { borderRadius: 5, borderColor: '#0f172a', borderWidth: 2 }, label: { color: '#cbd5e1' }, data: data }] };
+            platformsChart.setOption(option);
+        }
+
+        function updateImpactChart() {
+            const counts = {};
+            filteredData.forEach(row => {
+                let imp = row['מידת השפעה'];
+                if(imp) { counts[imp] = (counts[imp] || 0) + 1; }
+            });
+            const sortedKeys = Object.keys(counts).sort((a, b) => counts[a] - counts[b]);
+            const sortedVals = sortedKeys.map(k => counts[k]);
+            const option = {
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } }, grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true }, xAxis: { type: 'value', splitLine: { show: false }, axisLabel: { show: false } }, yAxis: { type: 'category', data: sortedKeys, axisLabel: { color: '#cbd5e1' } },
+                series: [{ type: 'bar', data: sortedVals, itemStyle: { color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [{ offset: 0, color: '#8b5cf6' }, { offset: 1, color: '#c084fc' }]), borderRadius: [0, 4, 4, 0] }, label: { show: true, position: 'right', color: '#fff' } }]
+            };
+            impactChart.setOption(option);
+        }
+
+        function updateTable() {
+            const tbody = document.querySelector('#dataTable tbody');
+            tbody.innerHTML = '';
+            const rowsToShow = filteredData.slice(0, 15);
+            rowsToShow.forEach(row => {
+                const tr = document.createElement('tr');
+                const linkStr = row['קישור'] ? `<a href="${row['קישור']}" target="_blank">קרא עוד</a>` : '-';
+                let impactStyle = 'text-slate-400';
+                if(row['מידת השפעה'] === 'גבוה' || row['מידת השפעה'] === 'High') impactStyle = 'text-rose-500 font-bold';
+                if(row['מידת השפעה'] === 'בינוני' || row['מידת השפעה'] === 'Medium') impactStyle = 'text-amber-500 font-bold';
+                tr.innerHTML = `
+                    <td class="whitespace-nowrap">${row['תאריך'] || '-'}</td>
+                    <td class="font-semibold" style="max-width:300px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" title="${row['כותרת בעברית']}">${row['כותרת בעברית'] || '-'}</td>
+                    <td class="text-rose-400">${row['הגוף התוקף'] || '-'}</td>
+                    <td class="text-sky-400">${row['הגוף המותקף'] || '-'}</td>
+                    <td>${row['פלטפורמות'] || '-'}</td>
+                    <td class="${impactStyle}">${row['מידת השפעה'] || '-'}</td>
+                    <td>${linkStr}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            if(filteredData.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-slate-500">לא נמצאו נתונים התואמים את הסינון</td></tr>'; }
+        }
+    </script>
+</body>
+</html>
