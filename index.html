@@ -3,85 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>דשבורד התערבויות זרות - חדר מצב</title>
+    <title>PulseMap - דשבורד התערבויות זרות</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a; color: #e2e8f0; }
-        .glass-panel { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; backdrop-filter: blur(10px); padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
-        .chart-container { width: 100%; height: 300px; }
-        .map-container { width: 100%; height: 500px; }
-        .metric-value { font-size: 2.5rem; font-weight: bold; color: #38bdf8; line-height: 1; margin-top: 10px; }
-        .metric-title { font-size: 1rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { text-align: right; padding: 12px; border-bottom: 1px solid #334155; font-size: 0.9rem; }
-        th { background-color: #1e293b; color: #94a3b8; font-weight: 600; }
-        tr:hover { background-color: #1e293b; }
-        a { color: #38bdf8; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-        .tab-btn { padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .tab-active { background-color: #0284c7; color: white; }
-        .tab-inactive { background-color: #334155; color: #94a3b8; }
+        :root { --bg:#07111f; --panel:rgba(15,23,42,.72); --line:rgba(148,163,184,.16); --cyan:#22d3ee; --violet:#a78bfa; --pink:#fb7185; --lime:#a3e635; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background:
+            radial-gradient(circle at 12% 10%, rgba(34,211,238,.16), transparent 26%),
+            radial-gradient(circle at 88% 4%, rgba(167,139,250,.18), transparent 28%),
+            linear-gradient(145deg,#07111f 0%,#0b1326 52%,#111827 100%); color:#e2e8f0; min-height:100vh; }
+        body:before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.18; background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px); background-size:32px 32px; }
+        .glass-panel { position:relative; background:var(--panel); border:1px solid var(--line); border-radius:22px; backdrop-filter:blur(18px); padding:20px; box-shadow:0 20px 60px rgba(0,0,0,.28); overflow:hidden; }
+        .glass-panel:after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(135deg,rgba(255,255,255,.06),transparent 35%); }
+        .hero { background:linear-gradient(120deg,rgba(14,165,233,.18),rgba(139,92,246,.16) 52%,rgba(244,63,94,.13)); }
+        .brand-badge { display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:999px; background:rgba(34,211,238,.11); border:1px solid rgba(34,211,238,.28); color:#67e8f9; font-size:.8rem; font-weight:800; letter-spacing:.08em; }
+        .live-dot { width:9px; height:9px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 6px rgba(74,222,128,.12); animation:pulse 1.8s infinite; }
+        @keyframes pulse { 50% { box-shadow:0 0 0 10px rgba(74,222,128,0); } }
+        .action-btn { border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.07); color:white; padding:10px 15px; border-radius:14px; font-weight:800; transition:.2s; cursor:pointer; }
+        .action-btn:hover { transform:translateY(-2px); background:rgba(255,255,255,.12); }
+        .primary-btn { background:linear-gradient(135deg,#06b6d4,#8b5cf6); border:none; box-shadow:0 10px 28px rgba(6,182,212,.2); }
+        .chart-container { width:100%; height:300px; }
+        .map-container { width:100%; height:500px; }
+        .metric-card { min-height:145px; display:flex; flex-direction:column; justify-content:center; }
+        .metric-value { font-size:2.7rem; font-weight:900; color:#67e8f9; line-height:1; margin-top:12px; letter-spacing:-.04em; }
+        .metric-title { font-size:.78rem; color:#94a3b8; font-weight:800; text-transform:uppercase; letter-spacing:.09em; }
+        .metric-icon { position:absolute; left:18px; top:18px; font-size:1.4rem; opacity:.8; }
+        .filter-chip { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:999px; background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.1); cursor:pointer; transition:.2s; }
+        .filter-chip:hover { background:rgba(255,255,255,.1); }
+        select { border-radius:12px!important; }
+        table { width:100%; border-collapse:collapse; }
+        th,td { text-align:right; padding:13px 12px; border-bottom:1px solid rgba(148,163,184,.13); font-size:.9rem; }
+        th { background:rgba(15,23,42,.88); color:#94a3b8; font-weight:800; position:sticky; top:0; }
+        tr:hover { background:rgba(34,211,238,.045); }
+        a { color:#67e8f9; text-decoration:none; font-weight:700; }
+        a:hover { text-decoration:underline; }
+        ::-webkit-scrollbar { width:8px; height:8px; }
+        ::-webkit-scrollbar-track { background:#07111f; }
+        ::-webkit-scrollbar-thumb { background:#334155; border-radius:9px; }
+        .status-pill { display:inline-flex!important; align-items:center; gap:7px; padding:8px 12px; border-radius:999px; background:rgba(15,23,42,.72); }
     </style>
 </head>
 <body class="p-4 md:p-6 min-h-screen">
 
-    <div class="max-w-7xl mx-auto mb-6">
-        <div class="glass-panel mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-l-4 border-l-sky-500">
-            <div>
-                <h1 class="text-3xl font-bold text-white mb-2">מערכת מעקב: התערבויות זרות</h1>
-                <p class="text-slate-400">ניטור איומים, דיסאינפורמציה והשפעה דיגיטלית ברחבי העולם</p>
+    <div class="max-w-7xl mx-auto mb-8 relative z-10">
+        <div class="glass-panel hero mb-6 p-6 md:p-8">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                <div>
+                    <div class="brand-badge mb-4"><span class="live-dot"></span> PULSEMAP LIVE</div>
+                    <h1 class="text-4xl md:text-5xl font-black text-white mb-3 tracking-tight">מפת ההתערבות הגלובלית</h1>
+                    <p class="text-slate-300 text-lg max-w-2xl">תמונת מצב חיה של איומי השפעה, דיסאינפורמציה ופעילות דיגיטלית בזירה הבינלאומית.</p>
+                </div>
+                <div class="flex flex-wrap gap-3 items-center">
+                    <button onclick="loadDataFromUrl()" class="action-btn primary-btn">↻ רענון נתונים</button>
+                    <button onclick="document.getElementById('csvFile').click()" class="action-btn">↑ טעינת CSV חלופי</button>
+                    <input type="file" id="csvFile" accept=".csv" class="hidden" onchange="loadDataFromFile()">
+                    <input type="hidden" id="csvUrl">
+                </div>
             </div>
-            
-            <div class="flex-grow max-w-xl w-full bg-slate-800 p-4 rounded-lg border border-slate-700">
-                <div class="flex gap-2 mb-4">
-                    <button id="btnTabLive" class="tab-btn tab-active" onclick="switchTab('live')">חיבור חי (URL)</button>
-                    <button id="btnTabFile" class="tab-btn tab-inactive" onclick="switchTab('file')">טעינת קובץ CSV ידנית</button>
-                </div>
-                
-                <!-- Live URL Input -->
-                <div id="tabLive">
-                    <label class="block text-sm text-slate-400 mb-1">קישור חי לנתונים (Google Sheets CSV URL):</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="csvUrl" placeholder="הדבק כאן את הקישור ל-CSV שלך..." class="w-full bg-slate-900 border border-slate-600 rounded px-4 py-2 text-white focus:outline-none focus:border-sky-500">
-                        <button onclick="loadDataFromUrl()" class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-2 rounded font-semibold transition-colors shadow-lg shadow-sky-900 whitespace-nowrap">טען</button>
-                    </div>
-                </div>
-
-                <!-- Local File Input -->
-                <div id="tabFile" style="display: none;">
-                    <label class="block text-sm text-slate-400 mb-1">בחר קובץ CSV מהמחשב (ללא בעיות רשת):</label>
-                    <div class="flex gap-2">
-                        <input type="file" id="csvFile" accept=".csv" class="w-full text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-500 cursor-pointer">
-                        <button onclick="loadDataFromFile()" class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-2 rounded font-semibold transition-colors shadow-lg shadow-sky-900 whitespace-nowrap">טען</button>
-                    </div>
-                </div>
-                <div id="statusMsg" class="mt-2 text-sm hidden font-bold"></div>
+            <div class="mt-6 flex flex-wrap gap-3 items-center">
+                <div id="statusMsg" class="status-pill text-sm font-bold text-slate-300">מתחבר ל-Google Sheets...</div>
+                <div class="text-xs text-slate-500">המקור הקבוע מחובר אוטומטית ומתעדכן בכל פתיחה או רענון.</div>
             </div>
         </div>
 
         <!-- Filters -->
-        <div class="glass-panel mb-6 flex flex-wrap gap-4 items-center" id="filtersDiv" style="opacity: 0.5; pointer-events: none;">
-            <span class="text-slate-400 font-semibold mr-2">סינון מהיר:</span>
+        <div class="glass-panel mb-6 flex flex-wrap gap-3 items-center" id="filtersDiv" style="opacity: 0.5; pointer-events: none;">
+            <span class="text-white font-extrabold ml-2">סינון חכם</span>
             <select id="filterAttacker" onchange="applyFilters()" class="bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-white">
                 <option value="all">כל התוקפים</option>
             </select>
-            <label class="flex items-center gap-2 cursor-pointer">
+            <label class="filter-chip">
                 <input type="checkbox" id="filterIsrael" onchange="applyFilters()" class="form-checkbox text-sky-500 rounded bg-slate-800 border-slate-600">
                 <span>קשור לישראל</span>
             </label>
-            <label class="flex items-center gap-2 cursor-pointer">
+            <label class="filter-chip">
                 <input type="checkbox" id="filterAI" onchange="applyFilters()" class="form-checkbox text-sky-500 rounded bg-slate-800 border-slate-600">
                 <span>שימוש ב-AI</span>
             </label>
-            <label class="flex items-center gap-2 cursor-pointer">
+            <label class="filter-chip">
                 <input type="checkbox" id="filterElections" onchange="applyFilters()" class="form-checkbox text-sky-500 rounded bg-slate-800 border-slate-600">
                 <span>קשור לבחירות</span>
             </label>
@@ -90,20 +93,20 @@
         <!-- Dashboard Content (hidden until data loads) -->
         <div id="dashboardContent" style="opacity: 0.2;">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                <div class="glass-panel text-center relative overflow-hidden">
-                    <div class="metric-title">סך הכל אירועים</div>
+                <div class="glass-panel metric-card text-center relative">
+                    <div class="metric-icon">◎</div><div class="metric-title">סך הכל אירועים</div>
                     <div class="metric-value" id="valTotal">0</div>
                 </div>
-                <div class="glass-panel text-center relative overflow-hidden">
-                    <div class="metric-title">קשור לישראל/יהודים</div>
+                <div class="glass-panel metric-card text-center relative">
+                    <div class="metric-icon">✦</div><div class="metric-title">קשור לישראל/יהודים</div>
                     <div class="metric-value text-rose-400" id="valIsrael">0</div>
                 </div>
-                <div class="glass-panel text-center relative overflow-hidden">
-                    <div class="metric-title">שימוש ב-AI</div>
+                <div class="glass-panel metric-card text-center relative">
+                    <div class="metric-icon">⌁</div><div class="metric-title">שימוש ב-AI</div>
                     <div class="metric-value text-purple-400" id="valAI">0%</div>
                 </div>
-                <div class="glass-panel text-center relative overflow-hidden">
-                    <div class="metric-title">התוקף הפעיל ביותר</div>
+                <div class="glass-panel metric-card text-center relative">
+                    <div class="metric-icon">⚡</div><div class="metric-title">התוקף הפעיל ביותר</div>
                     <div class="metric-value text-amber-400 text-2xl mt-4" id="valTopAttacker">-</div>
                 </div>
             </div>
@@ -170,7 +173,7 @@
         function showStatus(msg, isError) {
             const el = document.getElementById('statusMsg');
             el.textContent = msg;
-            el.className = 'mt-2 text-sm font-bold ' + (isError ? 'text-rose-500' : 'text-emerald-400');
+            el.className = 'status-pill text-sm font-bold ' + (isError ? 'text-rose-400' : 'text-emerald-300');
             el.style.display = 'block';
         }
 
@@ -182,8 +185,10 @@
 
         function getCoords(name) {
             if (coordinatesMap[name]) return coordinatesMap[name];
-            return [Math.random() * 20 - 10, Math.random() * 20 - 10]; 
+            let h=0; for(let i=0;i<name.length;i++) h=((h<<5)-h)+name.charCodeAt(i); return [((h%3000)/100)-15, (((h>>4)%1600)/100)-8]; 
         }
+
+        const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1vHoRl2vtBnH1W_PGGt_noRGENaOJUOHlckimL9ozdhw/edit?gid=1064459354#gid=1064459354';
 
         let rawData = [];
         let filteredData = [];
@@ -202,6 +207,15 @@
             .then(worldJson => {
                 echarts.registerMap('world', worldJson);
                 initCharts();
+                document.getElementById('csvUrl').value = DEFAULT_SHEET_URL;
+                loadDataFromUrl();
+            })
+            .catch(err => {
+                console.error('World map loading failed:', err);
+                showStatus('מפת העולם לא נטענה, אך עדיין ניתן לטעון את נתוני Google Sheets.', true);
+                initCharts();
+                document.getElementById('csvUrl').value = DEFAULT_SHEET_URL;
+                loadDataFromUrl();
             });
 
         function getGoogleSheetInfo(rawUrl) {
@@ -490,7 +504,7 @@
                 tooltip: { trigger: 'item', formatter: p => p.seriesType === 'lines' ? p.data.fromName + ' > ' + p.data.toName : p.name },
                 geo: { map: 'world', roam: true, zoom: 1.2, itemStyle: { areaColor: '#1e293b', borderColor: '#475569', borderWidth: 1 }, emphasis: { itemStyle: { areaColor: '#334155' } } },
                 series: [
-                    { type: 'lines', zlevel: 2, effect: { show: true, period: 4, trailLength: 0.1, symbol: 'arrow', symbolSize: 6 }, lineStyle: { color: '#ef4444', width: 1.5, opacity: 0.6, curveness: 0.2 }, data: linesData },
+                    { type: 'lines', zlevel: 2, effect: { show: true, period: 4, trailLength: 0.1, symbol: 'arrow', symbolSize: 8 }, lineStyle: { color: '#ef4444', width: 2, opacity: 0.72, curveness: 0.2 }, data: linesData },
                     { type: 'effectScatter', coordinateSystem: 'geo', zlevel: 2, rippleEffect: { brushType: 'stroke' }, label: { show: true, position: 'right', formatter: '{b}', color: '#cbd5e1' }, itemStyle: { color: '#38bdf8' }, symbolSize: 8, data: [...new Map(pointsData.map(i => [i['name'], i])).values()] }
                 ]
             };
